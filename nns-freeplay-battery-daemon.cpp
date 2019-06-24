@@ -190,13 +190,14 @@ int main(int argc, char *argv[]){ //main
 		}else if(strcmp(argv[i],"-outputpath")==0){strcpy(vbat_output_path,argv[i+1]);if(access(vbat_output_path,W_OK)!=0){printf("Failed, %s not writable, Exiting\n",vbat_output_path);return 1;}
 		}else if(strcmp(argv[i],"-vbatfilename")==0){strcpy(vbat_filename,argv[i+1]);
 		}else if(strcmp(argv[i],"-vbatstatsfilename")==0){strcpy(vbat_stats_filename,argv[i+1]);
-		}else if(strcmp(argv[i],"-vbatlogging")==0){if(atoi(argv[i+1])<1){vbat_logging=false;};
+		}else if(strcmp(argv[i],"-vbatlogging")==0){if(atoi(argv[i+1])<1){vbat_logging=false;}else{vbat_logging=true;};
 		}else if(strcmp(argv[i],"-vbatoffset")==0){vbat_offset=atof(argv[i+1]);if(strstr(argv[i+1],"-")){vbat_offset=vbat_offset*-1;}
 		
-		}else if(strcmp(argv[i],"-adcvref")==0){vbat_offset=atof(argv[i+1]);
+		}else if(strcmp(argv[i],"-adcvref")==0){adc_vref=atof(argv[i+1]);
 		}else if(strcmp(argv[i],"-adcres")==0){adc_resolution=atoi(argv[i+1]);
 		}else if(strcmp(argv[i],"-r1value")==0){adc_divider_r1=atoi(argv[i+1]);
 		}else if(strcmp(argv[i],"-r2value")==0){adc_divider_r2=atoi(argv[i+1]);}
+		++i;
 	}
 	
 	
