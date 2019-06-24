@@ -15,3 +15,7 @@ Note : In MCP3X21A case, RSOC is based on a curve recover after real world testi
 
 Note: Don't miss to edit nns-freeplay-battery-daemon.service set path and others arguments correctly.
 
+# Issues
+### Overlay ADC settings are good but battery voltage is a little off
+Sometime ADC chip report a little wrong value because of input impedance or capacitance.
+To correct this, use '-adcoffset', this argument allow a positive or a negative voltage correction directly apply to the computed battery voltage.
