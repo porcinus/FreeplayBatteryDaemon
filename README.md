@@ -3,9 +3,10 @@ This program is design to recover battery voltage and RSOC using LC709203F, MCP3
 
 Note : In MCP3X21A case, RSOC is based on a curve recover after real world testing.
 
+# Todo
+- Implement register manipulation for LC709203F chip via arguments.
 
 # History
-
 - 0.1a : Initial release, PreAlpha stage, MCP3X21A not fully tested.
 
 # Provided scripts :
