@@ -8,6 +8,7 @@ Note : In MCP3X21A case, RSOC is based on a curve recover after real world testi
 
 # History
 - 0.1a : Initial release, PreAlpha stage, MCP3X21A not fully tested.
+- 0.1b : Custom I2C registers with 16bits value can be set, Example : '-register16 0x12.0x1,0x08.0x0BA6,0x0B.0x2D'
 
 # Provided scripts :
 - compile.sh : Compile cpp file (run this first), require libpthread-dev.
