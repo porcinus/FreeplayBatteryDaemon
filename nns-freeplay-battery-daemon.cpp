@@ -3,7 +3,7 @@ NNS @ 2018
 nns-freeplay-battery-daemon
 Battery monitoring daemon Compatible with MCP3021A, LC709203F
 */
-const char programversion[]="0.1a"; //program version
+const char programversion[]="0.1b"; //program version
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -20,13 +20,19 @@ const char programversion[]="0.1a"; //program version
 int debug=1;		//debug level, 0:disable, 1:minimal, 2:full
 #define debug_print(fmt, ...) do { if (debug) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__); } while (0)
 
-int i2c_bus=-1;								//i2c bus id
-char i2c_path[PATH_MAX];			//path to i2c bus
-char i2c_addr=0x0B;						//i2c device adress
-bool i2c_addr_valid=false;		//i2c device adress is valid
-int i2c_handle;								//i2c handle io
-char i2c_buffer[10]={0};			//i2c data buffer
-int i2c_retry=0;							//reading retry if failure
+int i2c_bus=-1;									//i2c bus id
+char i2c_path[PATH_MAX];				//path to i2c bus
+char i2c_addr=0x0B;							//i2c device adress
+char i2c_register16_raw[1024];	//i2c custom register char array
+char i2c_register16_count=-1;		//i2c custom register : counter
+char i2c_register16_reg[32];		//i2c custom register : register array
+int i2c_register16_value[32];		//i2c custom register : value array
+
+
+bool i2c_addr_valid=false;			//i2c device adress is valid
+int i2c_handle;									//i2c handle io
+char i2c_buffer[10]={0};				//i2c data buffer
+int i2c_retry=0;								//reading retry if failure
 
 char vbat_output_path[PATH_MAX];					//path where output final data
 char vbat_filename[PATH_MAX];							//battery output filename
@@ -158,6 +164,7 @@ void show_usage(void){
 "\t-debug, Enable debugging features, 1 for minimal, 2 for full [Default: 1]\n"
 "\t-i2cbus, I2C bus id, scan thru all available if not set\n"
 "\t-i2caddr, I2C device adress, found via 'i2cdetect' [Default: 0x0B]\n"
+"\t-register16, Custom I2C registers with 16bits value [Example : 0x12.0x1,0x08.0x0BA6,0x0B.0x2D,...]\n"
 "\t-updateduration, Time between each update, in sec [Default: 15]\n"
 "\t-outputpath, Path where data will be saved [Default: /dev/shm]\n"
 "\t-vbatfilename, File that will contain current battery voltage and RSOC, format 'vbat;percent' [Default: vbat.log]\n"
@@ -184,6 +191,7 @@ int main(int argc, char *argv[]){ //main
 		}else if(strcmp(argv[i],"-debug")==0){debug=atoi(argv[i+1]);
 		}else if(strcmp(argv[i],"-i2cbus")==0){i2c_bus=atoi(argv[i+1]);if(strstr(argv[i+1],"-")){i2c_bus=-i2c_bus;}
 		}else if(strcmp(argv[i],"-i2caddr")==0){sscanf(argv[i+1], "%x", &i2c_addr);
+		}else if(strcmp(argv[i],"-register16")==0){strcpy(i2c_register16_raw,argv[i+1]);i2c_register16_count=0;
 		
 		}else if(strcmp(argv[i],"-updateduration")==0){update_duration=atoi(argv[i+1]);
 		
@@ -200,7 +208,22 @@ int main(int argc, char *argv[]){ //main
 		++i;
 	}
 	
-	
+	if(i2c_register16_count==0){ //custom 16bit registers
+		char* chr_ptr=i2c_register16_raw; //pointer to -register16 arguments
+		char* chr_tmp_ptr; //temporary pointer
+		char* chr_dot_ptr; //dot split pointer
+		
+		while((chr_tmp_ptr = strtok_r(chr_ptr,",",&chr_ptr))){ //0x1.0x1234,0x02.0x4567
+			chr_dot_ptr=strtok(chr_tmp_ptr,"."); //split
+			sscanf(chr_dot_ptr,"%x",&i2c_register16_reg[i2c_register16_count]); //extract register
+			chr_dot_ptr=strtok(NULL,"."); //split
+			if(chr_dot_ptr!=NULL){
+				sscanf(chr_dot_ptr,"%x",&i2c_register16_value[i2c_register16_count]); //extract value
+				debug_print("User custom 16bits Register : 0x%02x -> 0x%04x\n",i2c_register16_reg[i2c_register16_count],i2c_register16_value[i2c_register16_count]);
+				i2c_register16_count++;
+			}
+		}
+	}
 	
 	for(int i=(i2c_bus<0)?0:i2c_bus;i<10;i++){ //detect i2c bus
 		sprintf(i2c_path,"/dev/i2c-%d",i); //generate i2c bus full path
@@ -221,8 +244,6 @@ int main(int argc, char *argv[]){ //main
 	if(i2c_addr==0x0B){LC709203F_detected=true; debug_print("LC709203F detected\n");
 	}else if(i2c_addr>=0x48&&i2c_addr<=0x4F){MCP3021A_detected=true; debug_print("MCP3021A detected\n");
 	}else{debug_print("Failed, I2C address out of range, Exiting\n"); return(1);} //failed
-	
-	
 	
 	while(true){
 		chdir(vbat_output_path); //change default dir
@@ -245,10 +266,9 @@ int main(int argc, char *argv[]){ //main
 							LC709203F_write_reg(i2c_addr,0x15,0x0001); //IC Power Mode
 							LC709203F_write_reg(i2c_addr,0x0B,0x002D); //APA
 							LC709203F_write_reg(i2c_addr,0x12,0x0001); //Select battery profile
-							//LC709203F_write_reg(i2c_addr,0x13,0x0000); //Alarm Low RSOC
-							//LC709203F_write_reg(i2c_addr,0x14,0x0000); //Alarm Low Cell
 							LC709203F_write_reg(i2c_addr,0x16,0x0000); //Temperature via I2C
 							LC709203F_write_reg(i2c_addr,0x08,0x0BA6); //Temperature at 25°C
+							for(int i=0;i<i2c_register16_count;i++){LC709203F_write_reg(i2c_addr,i2c_register16_reg[i],i2c_register16_value[i]);} //custom 16bits register
 							LC709203F_write_reg(i2c_addr,0x07,0xAA55); //Init RSOC
 							
 							vbat_value=LC709203F_read_reg(i2c_addr,0x09)/1000.; //Cell Voltage register
