@@ -22,7 +22,7 @@ int debug=1;		//debug level, 0:disable, 1:minimal, 2:full
 
 int i2c_bus=-1;									//i2c bus id
 char i2c_path[PATH_MAX];				//path to i2c bus
-char i2c_addr=0x0B;							//i2c device adress
+int i2c_addr=0x0B;							//i2c device adress
 char i2c_register16_raw[1024];	//i2c custom register char array
 char i2c_register16_count=-1;		//i2c custom register : counter
 char i2c_register16_reg[32];		//i2c custom register : register array
@@ -198,7 +198,7 @@ int main(int argc, char *argv[]){ //main
 		}else if(strcmp(argv[i],"-outputpath")==0){strcpy(vbat_output_path,argv[i+1]);if(access(vbat_output_path,W_OK)!=0){printf("Failed, %s not writable, Exiting\n",vbat_output_path);return 1;}
 		}else if(strcmp(argv[i],"-vbatfilename")==0){strcpy(vbat_filename,argv[i+1]);
 		}else if(strcmp(argv[i],"-vbatstatsfilename")==0){strcpy(vbat_stats_filename,argv[i+1]);
-		}else if(strcmp(argv[i],"-vbatlogging")==0){if(atoi(argv[i+1])<1){vbat_logging=false;}else{vbat_logging=true;};
+		}else if(strcmp(argv[i],"-vbatlogging")==0){if(atoi(argv[i+1])<1){vbat_logging=false;}else{vbat_logging=true;}
 		}else if(strcmp(argv[i],"-vbatoffset")==0){vbat_offset=atof(argv[i+1]);if(strstr(argv[i+1],"-")){vbat_offset=vbat_offset*-1;}
 		
 		}else if(strcmp(argv[i],"-adcvref")==0){adc_vref=atof(argv[i+1]);
