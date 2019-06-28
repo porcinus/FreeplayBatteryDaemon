@@ -24,8 +24,8 @@ int i2c_bus=-1;									//i2c bus id
 char i2c_path[PATH_MAX];				//path to i2c bus
 int i2c_addr=0x0B;							//i2c device adress
 char i2c_register16_raw[1024];	//i2c custom register char array
-char i2c_register16_count=-1;		//i2c custom register : counter
-char i2c_register16_reg[32];		//i2c custom register : register array
+int i2c_register16_count=-1;		//i2c custom register : counter
+int i2c_register16_reg[32];		//i2c custom register : register array
 int i2c_register16_value[32];		//i2c custom register : value array
 
 
@@ -49,6 +49,7 @@ float adc_vref=4.5;												//in volt, vdd of the adc chip
 int adc_raw_value=0;											//adc step value
 
 bool LC709203F_detected=false;
+bool LC709203F_init=false;
 bool MCP3021A_detected=false;
 
 FILE *temp_filehandle;			//file handle to get cpu temp/usage
@@ -103,10 +104,12 @@ int LC709203F_write_reg(int addr,char reg, int data){
 
 	i2c_buffer[0]=reg; i2c_buffer[1]=crc_array[2]; i2c_buffer[2]=crc_array[3]; i2c_buffer[3]=crc_array[4];
 
-	if(debug==2){debug_print("\nLC709203F_write_reg\n");}
-	if(debug==2){debug_print("register : 0x%02x\n",reg);}
-	if(debug==2){debug_print("data : 0x%02x 0x%02x\n",crc_array[2],crc_array[3]);}
-	if(debug==2){debug_print("crc : 0x%02x\n",crc_array[4]);}
+	if(debug==2){
+		debug_print("LC709203F_write_reg\n");
+		debug_print("\tregister : 0x%02x\n",reg);
+		debug_print("\tdata : 0x%02x 0x%02x\n",crc_array[2],crc_array[3]);
+		debug_print("\tcrc : 0x%02x\n",crc_array[4]);
+	}
 
 	return write(i2c_handle,i2c_buffer,4); //write
 }
@@ -122,9 +125,11 @@ int LC709203F_read_reg(int addr,char reg){
 	
 	i2c_read = i2c_smbus_read_i2c_block_data(i2c_handle, reg, 3, (unsigned char *)i2c_buffer); //write register and read it
 	
-	if(debug==2){debug_print("\nLC709203F_read_reg\n");}
-	if(debug==2){debug_print("register : 0x%02x\n",reg);}
-	if(debug==2){debug_print("i2c_smbus_read_i2c_block_data returned 0x%04X 0x%02x 0x%02x 0x%02x\n", i2c_read, i2c_buffer[0],i2c_buffer[1],i2c_buffer[2]);}
+	if(debug==2){
+		debug_print("LC709203F_read_reg\n");
+		debug_print("\tregister : 0x%02x\n",reg);
+		debug_print("\ti2c_smbus_read_i2c_block_data returned 0x%04X 0x%02x 0x%02x 0x%02x\n", i2c_read, i2c_buffer[0],i2c_buffer[1],i2c_buffer[2]);
+	}
 
 	if(i2c_read<0){ //oups
 		debug_print("Failed to read register : %02x\n",reg);
@@ -139,10 +144,12 @@ int LC709203F_read_reg(int addr,char reg){
 		computed_crc = get_crc(read_crc_array,5); //computed crc
 		value=(i2c_buffer[1]<<8) | (i2c_buffer[0]); //merge into int
 
-		if(debug==2){debug_print("read buffer : 0x%02x 0x%02x 0x%02x\n",i2c_buffer[0],i2c_buffer[1],i2c_buffer[2]);}
-		if(debug==2){debug_print("read value : %d\n",value);}
-		if(debug==2){debug_print("computed crc : 0x%02x\n",computed_crc);}
-		if(debug==2){debug_print("read crc : 0x%02x\n",i2c_buffer[2]);}
+		if(debug==2){
+			debug_print("\tread buffer : 0x%02x 0x%02x 0x%02x\n",i2c_buffer[0],i2c_buffer[1],i2c_buffer[2]);
+			debug_print("\tread value : %d\n",value);
+			debug_print("\tcomputed crc : 0x%02x\n",computed_crc);
+			debug_print("\tread crc : 0x%02x\n",i2c_buffer[2]);
+		}
 
 		if(computed_crc == returned_crc){return value; //read crc match
 		}else{
@@ -195,7 +202,7 @@ int main(int argc, char *argv[]){ //main
 		
 		}else if(strcmp(argv[i],"-updateduration")==0){update_duration=atoi(argv[i+1]);
 		
-		}else if(strcmp(argv[i],"-outputpath")==0){strcpy(vbat_output_path,argv[i+1]);if(access(vbat_output_path,W_OK)!=0){printf("Failed, %s not writable, Exiting\n",vbat_output_path);return 1;}
+		}else if(strcmp(argv[i],"-outputpath")==0){strcpy(vbat_output_path,argv[i+1]);if(access(vbat_output_path,W_OK)!=0){debug_print("Failed, %s not writable, Exiting\n",vbat_output_path);return 1;}
 		}else if(strcmp(argv[i],"-vbatfilename")==0){strcpy(vbat_filename,argv[i+1]);
 		}else if(strcmp(argv[i],"-vbatstatsfilename")==0){strcpy(vbat_stats_filename,argv[i+1]);
 		}else if(strcmp(argv[i],"-vbatlogging")==0){if(atoi(argv[i+1])<1){vbat_logging=false;}else{vbat_logging=true;}
@@ -248,13 +255,13 @@ int main(int argc, char *argv[]){ //main
 	while(true){
 		chdir(vbat_output_path); //change default dir
 		i2c_retry=0; //reset retry counter
-		if(debug==2){debug_print("\nStart update loop\n");}
+		if(debug==2){debug_print("Start update loop\n");}
 		
 		while(i2c_retry<3){
+			adc_raw_value=-1; vbat_value=-1; vbat_percent_value=-1;
 			if((i2c_handle=open(i2c_path,O_RDWR))<0){
 				debug_print("Failed to open the I2C bus : %s, retry in %dsec\n",i2c_path,update_duration);
 				i2c_retry=3; //no need to retry since failed to open I2C bus itself
-				adc_raw_value=-1; vbat_value=-1; vbat_percent_value=-1;
 			}else{
 				if(ioctl(i2c_handle,I2C_SLAVE,i2c_addr)<0){ //access i2c device, allow retry if failed
 					debug_print("Failed to access I2C device : %02x, retry in 1sec\n",i2c_addr);
@@ -263,16 +270,22 @@ int main(int argc, char *argv[]){ //main
 						if(ioctl(i2c_handle,I2C_PEC,1)<0){ //enable pec
 							debug_print("Failed to enable PEC for I2C device : %02x\n",i2c_addr);
 						}else{
-							LC709203F_write_reg(i2c_addr,0x15,0x0001); //IC Power Mode
-							LC709203F_write_reg(i2c_addr,0x0B,0x002D); //APA
-							LC709203F_write_reg(i2c_addr,0x12,0x0001); //Select battery profile
-							LC709203F_write_reg(i2c_addr,0x16,0x0000); //Temperature via I2C
-							LC709203F_write_reg(i2c_addr,0x08,0x0BA6); //Temperature at 25°C
-							for(int i=0;i<i2c_register16_count;i++){LC709203F_write_reg(i2c_addr,i2c_register16_reg[i],i2c_register16_value[i]);} //custom 16bits register
-							LC709203F_write_reg(i2c_addr,0x07,0xAA55); //Init RSOC
+							if(!LC709203F_init){ //not done
+								LC709203F_write_reg(i2c_addr,0x15,0x0001); //IC Power Mode
+								LC709203F_write_reg(i2c_addr,0x0B,0x002D); //APA
+								LC709203F_write_reg(i2c_addr,0x12,0x0001); //Select battery profile
+								LC709203F_write_reg(i2c_addr,0x16,0x0000); //Temperature via I2C
+								LC709203F_write_reg(i2c_addr,0x08,0x0BA6); //Temperature at 25°C
+								for(int i=0;i<i2c_register16_count;i++){LC709203F_write_reg(i2c_addr,i2c_register16_reg[i],i2c_register16_value[i]);} //custom 16bits register
+								//LC709203F_write_reg(i2c_addr,0x07,0xAA55); //Init RSOC
+								LC709203F_init=true; //Init done
+								sleep(1); 
+							}
 							
 							vbat_value=LC709203F_read_reg(i2c_addr,0x09)/1000.; //Cell Voltage register
 							vbat_percent_value=LC709203F_read_reg(i2c_addr,0x0D); //RSOC register
+							
+							if(vbat_value<=0||vbat_percent_value<=0){LC709203F_init=false;} //something maybe wrong, try rewrite register next loop
 						}
 					}else if(MCP3021A_detected){
 						if(read(i2c_handle,i2c_buffer,2)!=2){debug_print("Failed to read data from I2C device : %04x, retry in 1sec\n",i2c_addr);
