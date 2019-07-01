@@ -313,8 +313,8 @@ int main(int argc, char *argv[]){ //main
 						}
 					}
 					
-					if(vbat_value<=0){debug_print("Warning, voltage under 0 volt, Probing failed\n");
-					}else if(vbat_percent_value<=0){debug_print("Warning, RSOC < 0%, Probing failed\n");
+					if(vbat_value<0){debug_print("Warning, voltage under 0 volt, Probing failed\n");
+					}else if(vbat_percent_value<0){debug_print("Warning, RSOC < 0%, Probing failed\n");
 					}else{ //success
 						debug_print("Voltage : %.3fv, RSOC : %d%%\n",vbat_value,vbat_percent_value);
 						vbat_value+=vbat_offset; //add adc chip error offset
