@@ -75,6 +75,20 @@ int nns_get_battery_percentage(int vbat){ //used if chip don't provide rsoc
 
 
 
+//https://stackoverflow.com/questions/3769405/determining-cpu-utilization
+int get_cpu_load(){
+	long double a[4], b[4];
+	temp_filehandle=fopen("/proc/stat","r");
+  fscanf(temp_filehandle,"%*s %Lf %Lf %Lf %Lf",&a[0],&a[1],&a[2],&a[3]);
+  fclose(temp_filehandle);
+  sleep(1);
+  temp_filehandle=fopen("/proc/stat","r");
+  fscanf(temp_filehandle,"%*s %Lf %Lf %Lf %Lf",&b[0],&b[1],&b[2],&b[3]);
+  fclose(temp_filehandle);
+  return (int)(((b[0]+b[1]+b[2]) - (a[0]+a[1]+a[2])) / ((b[0]+b[1]+b[2]+b[3]) - (a[0]+a[1]+a[2]+a[3])))*100;
+}
+
+
 
 //https://github.com/RIOT-OS/RIOT/blob/master/drivers/lc709203f/lc709203f.c
 static unsigned char get_crc(unsigned char *rec_values, unsigned char len){
@@ -271,21 +285,23 @@ int main(int argc, char *argv[]){ //main
 							debug_print("Failed to enable PEC for I2C device : %02x\n",i2c_addr);
 						}else{
 							if(!LC709203F_init){ //not done
+								while(get_cpu_load()>2){usleep(500000);} //if CPU load over 2%, sleep 500ms
 								LC709203F_write_reg(i2c_addr,0x15,0x0001); //IC Power Mode
 								LC709203F_write_reg(i2c_addr,0x0B,0x002D); //APA
 								LC709203F_write_reg(i2c_addr,0x12,0x0001); //Select battery profile
 								LC709203F_write_reg(i2c_addr,0x16,0x0000); //Temperature via I2C
 								LC709203F_write_reg(i2c_addr,0x08,0x0BA6); //Temperature at 25°C
+								//LC709203F_write_reg(i2c_addr,0x08,0x0C0A); //Temperature at 35°C
 								for(int i=0;i<i2c_register16_count;i++){LC709203F_write_reg(i2c_addr,i2c_register16_reg[i],i2c_register16_value[i]);} //custom 16bits register
 								//LC709203F_write_reg(i2c_addr,0x07,0xAA55); //Init RSOC
+								LC709203F_write_reg(i2c_addr,0x04,0xAA55); //Before RSOC
 								LC709203F_init=true; //Init done
-								sleep(1); 
+								debug_print("LC709203F initialized\n");
+								sleep(1);
 							}
 							
 							vbat_value=LC709203F_read_reg(i2c_addr,0x09)/1000.; //Cell Voltage register
 							vbat_percent_value=LC709203F_read_reg(i2c_addr,0x0D); //RSOC register
-							
-							if(vbat_value<=0||vbat_percent_value<=0){LC709203F_init=false;} //something maybe wrong, try rewrite register next loop
 						}
 					}else if(MCP3021A_detected){
 						if(read(i2c_handle,i2c_buffer,2)!=2){debug_print("Failed to read data from I2C device : %04x, retry in 1sec\n",i2c_addr);
@@ -297,8 +313,8 @@ int main(int argc, char *argv[]){ //main
 						}
 					}
 					
-					if(vbat_value<0){debug_print("Warning, voltage under 0 volt, Probing failed\n");
-					}else if(vbat_percent_value<0){debug_print("Warning, RSOC < 0%, Probing failed\n");
+					if(vbat_value<=0){debug_print("Warning, voltage under 0 volt, Probing failed\n");
+					}else if(vbat_percent_value<=0){debug_print("Warning, RSOC < 0%, Probing failed\n");
 					}else{ //success
 						debug_print("Voltage : %.3fv, RSOC : %d%%\n",vbat_value,vbat_percent_value);
 						vbat_value+=vbat_offset; //add adc chip error offset
