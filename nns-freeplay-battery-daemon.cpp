@@ -3,7 +3,7 @@ NNS @ 2018
 nns-freeplay-battery-daemon
 Battery monitoring daemon Compatible with MCP3021A, LC709203F
 */
-const char programversion[]="0.1b"; //program version
+const char programversion[]="0.1c"; //program version
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -18,14 +18,14 @@ const char programversion[]="0.1b"; //program version
 #include "battery_cm3.h"		//battery data for the Freeplay CM3 platform
 
 int debug=1;		//debug level, 0:disable, 1:minimal, 2:full
-#define debug_print(fmt, ...) do { if (debug) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__); } while (0)
+#define debug_print(fmt, ...) do { if (debug) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__); } while (0) //Flavor: print advanced debug to stderr
 
 int i2c_bus=-1;									//i2c bus id
 char i2c_path[PATH_MAX];				//path to i2c bus
 int i2c_addr=0x0B;							//i2c device adress
 char i2c_register16_raw[1024];	//i2c custom register char array
 int i2c_register16_count=-1;		//i2c custom register : counter
-int i2c_register16_reg[32];		//i2c custom register : register array
+int i2c_register16_reg[32];			//i2c custom register : register array
 int i2c_register16_value[32];		//i2c custom register : value array
 
 
@@ -41,6 +41,10 @@ bool vbat_logging=true;										//enable battery stats output
 float vbat_offset=0.;											//in volt, voltage error offset
 float vbat_value=.0;											//battery voltage, used as backup if read fail
 int vbat_percent_value=0;									//battery percentage
+float temperature_k=0.;										//battery temperature in kelvin
+int rsoc_extend[5]={100,0,100,0};					//rsoc extend limits
+char rsoc_extend_raw[1024];								//rsoc extend limits char array
+int rsoc_extend_count=-1;									//rsoc extend limits count
 int update_duration=15;										//update duration
 
 int adc_resolution=4096;									//256:8bits, 1024:10bits, 4096:12bits (default), 65535:16bits
@@ -48,21 +52,28 @@ int adc_divider_r1=0, adc_divider_r2=0;		//resistor divider value in ohm or kohm
 float adc_vref=4.5;												//in volt, vdd of the adc chip
 int adc_raw_value=0;											//adc step value
 
-bool LC709203F_detected=false;
-bool LC709203F_init=false;
-bool MCP3021A_detected=false;
+bool LC709203F_detected=false;		//chip detected bool
+bool LC709203F_init=false;				//used to init registers once
+bool MCP3021A_detected=false;			//chip detected bool
 
 FILE *temp_filehandle;			//file handle to get cpu temp/usage
 int uptime_value=0;					//uptime value
+
 
 int vbat_smooth_value[5];				//array to store last smoothed data
 bool vbat_smooth_init=false;		//array initialized?
 
 
 
+int nns_map_int(int x,int in_min,int in_max,int out_min,int out_max){
+  if(x<in_min){return out_min;}
+  if(x>in_max){return out_max;}
+  return (x-in_min)*(out_max-out_min)/(in_max-in_min)+out_min;
+}
 
 
-int nns_get_battery_percentage(int vbat){ //used if chip don't provide rsoc
+
+int nns_get_battery_percentage(int vbat){ //used if chip don't provide rsoc, try to predict rsoc plus smoothing
 	int i;
 	if(!vbat_smooth_init){vbat_smooth_value[0]=vbat_smooth_value[1]=vbat_smooth_value[2]=vbat_smooth_value[3]=vbat;vbat_smooth_init=true;} //initialize array if not already done
 	vbat=(vbat+vbat_smooth_value[3]+vbat_smooth_value[2]+vbat_smooth_value[1]+vbat_smooth_value[0])/5; //smoothed value
@@ -192,6 +203,7 @@ void show_usage(void){
 "\t-vbatstatsfilename, File that will contain battery data from start of the system, format 'uptime;vbat;percent' [Default: vbat-start.log]\n"
 "\t-vbatlogging, Set to 0 to disable battery stats data [Default: 1]\n"
 "\t-vbatoffset, Battery value offset, in volt, can be positive or negative [Default: 0.00]\n"
+"\t-rsocextend, Extend RSOC value [Default: 100,0,100,0] [Example : FROM_MAX,FROM_MIN,TO_MAX,TO_MIN]\n"
 "\t-adcvref, VRef of the ADC chip in volt [Default: 4.5]\n"
 "\t-adcres, ADC resolution: 256=8bits, 1024=10bits, 4096=12bits, 65535=16bits [Default: 4096]\n"
 "\t-r1value, R1 resistor value, in ohm, disable if 0\n"
@@ -221,6 +233,7 @@ int main(int argc, char *argv[]){ //main
 		}else if(strcmp(argv[i],"-vbatstatsfilename")==0){strcpy(vbat_stats_filename,argv[i+1]);
 		}else if(strcmp(argv[i],"-vbatlogging")==0){if(atoi(argv[i+1])<1){vbat_logging=false;}else{vbat_logging=true;}
 		}else if(strcmp(argv[i],"-vbatoffset")==0){vbat_offset=atof(argv[i+1]);if(strstr(argv[i+1],"-")){vbat_offset=vbat_offset*-1;}
+		}else if(strcmp(argv[i],"-rsocextend")==0){strcpy(rsoc_extend_raw,argv[i+1]);rsoc_extend_count=1;
 		
 		}else if(strcmp(argv[i],"-adcvref")==0){adc_vref=atof(argv[i+1]);
 		}else if(strcmp(argv[i],"-adcres")==0){adc_resolution=atoi(argv[i+1]);
@@ -243,6 +256,15 @@ int main(int argc, char *argv[]){ //main
 				debug_print("User custom 16bits Register : 0x%02x -> 0x%04x\n",i2c_register16_reg[i2c_register16_count],i2c_register16_value[i2c_register16_count]);
 				i2c_register16_count++;
 			}
+		}
+	}
+	
+	if(rsoc_extend_count==1){ //custom rsoc limits
+		if(sscanf(rsoc_extend_raw,"%d,%d,%d,%d",&rsoc_extend[0],&rsoc_extend[1],&rsoc_extend[2],&rsoc_extend[3])==4){ //extract value, success
+			debug_print("valid RSOC Extend value : FROM_MAX:%d ,FROM_MIN:%d ,TO_MAX:%d ,TO_MIN:%d\n",rsoc_extend[0],rsoc_extend[1],rsoc_extend[2],rsoc_extend[3]);
+		}else{ //fail
+			rsoc_extend[0]=100;rsoc_extend[1]=0;rsoc_extend[2]=100;rsoc_extend[3]=0;rsoc_extend_count=-1; //reset
+			debug_print("Invalid RSOC Extend value\n");
 		}
 	}
 	
@@ -292,9 +314,11 @@ int main(int argc, char *argv[]){ //main
 								LC709203F_write_reg(i2c_addr,0x16,0x0000); //Temperature via I2C
 								LC709203F_write_reg(i2c_addr,0x08,0x0BA6); //Temperature at 25°C
 								//LC709203F_write_reg(i2c_addr,0x08,0x0C0A); //Temperature at 35°C
+								//LC709203F_write_reg(i2c_addr,0x16,0x0001); //Temperature via Thermistor
+								//LC709203F_write_reg(i2c_addr,0x06,0x0FA0); //Thermistor B at 4000K
 								for(int i=0;i<i2c_register16_count;i++){LC709203F_write_reg(i2c_addr,i2c_register16_reg[i],i2c_register16_value[i]);} //custom 16bits register
 								//LC709203F_write_reg(i2c_addr,0x07,0xAA55); //Init RSOC
-								LC709203F_write_reg(i2c_addr,0x04,0xAA55); //Before RSOC
+								//LC709203F_write_reg(i2c_addr,0x04,0xAA55); //Before RSOC
 								LC709203F_init=true; //Init done
 								debug_print("LC709203F initialized\n");
 								sleep(1);
@@ -302,6 +326,7 @@ int main(int argc, char *argv[]){ //main
 							
 							vbat_value=LC709203F_read_reg(i2c_addr,0x09)/1000.; //Cell Voltage register
 							vbat_percent_value=LC709203F_read_reg(i2c_addr,0x0D); //RSOC register
+							temperature_k=(float)LC709203F_read_reg(i2c_addr,0x08)/10; //Cell Temperature in Kelvin
 						}
 					}else if(MCP3021A_detected){
 						if(read(i2c_handle,i2c_buffer,2)!=2){debug_print("Failed to read data from I2C device : %04x, retry in 1sec\n",i2c_addr);
@@ -317,6 +342,12 @@ int main(int argc, char *argv[]){ //main
 					}else if(vbat_percent_value<0){debug_print("Warning, RSOC < 0%, Probing failed\n");
 					}else{ //success
 						debug_print("Voltage : %.3fv, RSOC : %d%%\n",vbat_value,vbat_percent_value);
+						
+						if(rsoc_extend_count==1){ //custom rsoc limits
+							vbat_percent_value=nns_map_int(vbat_percent_value,rsoc_extend[1],rsoc_extend[0],rsoc_extend[3],rsoc_extend[2]);
+							debug_print("Extended RSOC : %d%%\n",vbat_percent_value);
+						}
+						
 						vbat_value+=vbat_offset; //add adc chip error offset
 						temp_filehandle=fopen(vbat_filename,"wb"); fprintf(temp_filehandle,"%.3f;%d",vbat_value,vbat_percent_value); fclose(temp_filehandle); //write log file
 						if(vbat_logging){ //cumulative cumulative log file
@@ -324,6 +355,9 @@ int main(int argc, char *argv[]){ //main
 							temp_filehandle=fopen(vbat_stats_filename,"a+"); fprintf(temp_filehandle,"%u;%.3f;%d\n",uptime_value,vbat_value,vbat_percent_value); fclose(temp_filehandle); //write cumulative log file
 						}
 					}
+					
+					if(temperature_k<0){debug_print("Warning, Cell Temperature probing failed\n");
+					}else{debug_print("Cell Temperature : %.1fK, %.1fC, %.1fF\n",temperature_k,temperature_k-273.15,temperature_k*9/5-459.67);}
 				}
 				close(i2c_handle);
 			}
