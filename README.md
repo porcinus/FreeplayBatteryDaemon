@@ -4,7 +4,6 @@ This program is design to recover battery voltage and RSOC using LC709203F, MCP3
 Note : In MCP3X21A case, RSOC is based on a curve recover after real world testing.
 
 # Todo
-LC709203F still report wrong RSOC maybe because of HG−CVR algorithm that detect impedance of the line as battery with huge wear. Fully charged battery is okay but battery drop to 0% at 3.50v.
 
 # History
 - 0.1a : Initial release, PreAlpha stage, MCP3X21A not fully tested.
@@ -22,3 +21,7 @@ Note: Don't miss to edit nns-freeplay-battery-daemon.service set path and others
 ### Overlay ADC settings are good but battery voltage is a little off
 Sometime ADC chip report a little wrong value because of input impedance or capacitance.
 To correct this, use '-adcoffset', this argument allow a positive or a negative voltage correction directly apply to the computed battery voltage.
+
+### LC709203F report wrong RSOC
+Because of HG−CVR algorithm, if there is some impedance on the line, the battery considered as having a huge wear. Fully charged battery is okay but battery drop to 0% at 3.50v for example.
+To correct this, use '-rsocextend', please note that this way can limit the lower or higher value or both.
