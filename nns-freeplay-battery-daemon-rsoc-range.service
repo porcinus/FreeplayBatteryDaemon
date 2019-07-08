@@ -8,7 +8,7 @@ After=basic.target
 User=root
 Group=root
 Type=simple
-ExecStart=/home/pi/NNS/FreeplayBatteryDaemon/nns-freeplay-battery-daemon -register16 0x0B.0x002D,0x16.0x0001,0x06.0x0FA0
+ExecStart=/home/pi/NNS/FreeplayBatteryDaemon/nns-freeplay-battery-daemon -register16 0x0B.0x002D,0x16.0x0001,0x06.0x0FA0 -rsocextend 90,0,100,20
 TimeoutStartSec=0
 # write to journal or within script to separate log file
 # StandardOutput=/home/pi/NNS/FreeplayBatteryDaemon/nns-freeplay-battery-daemon-out.log
