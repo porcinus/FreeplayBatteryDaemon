@@ -3,8 +3,6 @@ This program is design to recover battery voltage and RSOC using LC709203F, MCP3
 
 Note : In MCP3X21A case, RSOC is based on a curve recover after real world testing.
 
-# Todo
-
 # History
 - 0.1a : Initial release, PreAlpha stage, MCP3X21A not fully tested.
 - 0.1b : MCP3X21A working, custom I2C registers with 16bits value can be set, Example : '-register16 0x12.0x1,0x08.0x0BA6,0x0B.0x2D'.
@@ -16,6 +14,9 @@ Note : In MCP3X21A case, RSOC is based on a curve recover after real world testi
 - remove.sh : Remove service.
 
 Note: Don't miss to edit nns-freeplay-battery-daemon.service set path and others arguments correctly.
+
+# Todo
+Add support for Maxim MAX17048G and alerr handling.
 
 # Issues
 ### Overlay ADC settings are good but battery voltage is a little off
