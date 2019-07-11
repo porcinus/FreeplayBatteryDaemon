@@ -16,7 +16,7 @@ Note : In MCP3X21A case, RSOC is based on a curve recover after real world testi
 Note: Don't miss to edit nns-freeplay-battery-daemon.service set path and others arguments correctly.
 
 # Todo
-Add support for Maxim MAX17048G and alerr handling.
+Add support for Maxim MAX17048G and alert handling.
 
 # Issues
 ### Overlay ADC settings are good but battery voltage is a little off
