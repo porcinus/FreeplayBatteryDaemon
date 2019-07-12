@@ -1,5 +1,5 @@
 # FreeplayBatteryDaemon
-This program is design to recover battery voltage and RSOC using LC709203F, MCP3021A or MCP3221A. Then output a test file that can be recover by other software to do stuff.
+This program is design to recover battery voltage and RSOC using LC709203F, MCP3021A/MCP3221A, MAX17048. Then output text file that can be recover by other software to do stuff.
 
 Note : In MCP3X21A case, RSOC is based on a curve recover after real world testing.
 
@@ -7,6 +7,7 @@ Note : In MCP3X21A case, RSOC is based on a curve recover after real world testi
 - 0.1a : Initial release, PreAlpha stage, MCP3X21A not fully tested.
 - 0.1b : MCP3X21A working, custom I2C registers with 16bits value can be set, Example : '-register16 0x12.0x1,0x08.0x0BA6,0x0B.0x2D'.
 - 0.1c : RSOC value can be extend, Example : '-rsocextend 90,0,100,20', value of 90 will be 100 and 0 will be 20. This argument is used to try to correct LC709203F HG−CVR algorithm.
+- 0.1d : Alarm register implement, set low voltage using '-vbatlowvoltage', set low soc using '-vbatlowsoc', MAX17048 implement.
 
 # Provided scripts :
 - compile.sh : Compile cpp file (run this first), require libi2c-dev.
