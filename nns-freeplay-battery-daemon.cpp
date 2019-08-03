@@ -17,7 +17,7 @@ const char programversion[]="0.1d"; //program version
 
 #include "battery_cm3.h"		//battery data for the Freeplay CM3 platform
 
-int debug=1;		//debug level, 0:disable, 1:minimal, 2:full
+int debug=0;		//debug level, 0:disable, 1:minimal, 2:full
 #define debug_print(fmt, ...) do { if (debug) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, __LINE__, __func__, ##__VA_ARGS__); } while (0) //Flavor: print advanced debug to stderr
 
 int i2c_bus=-1;									//i2c bus id
@@ -352,7 +352,7 @@ int main(int argc, char *argv[]){ //main
 
 	if(i2c_addr_valid){debug_print("Bus %d : 0x%02x detected\n",i2c_bus,i2c_addr); //bus detected
 	}else{debug_print("Failed, 0x%02x not detected on any bus, Exiting\n",i2c_addr);return(1);} //failed
-		
+	
 	if(i2c_addr==0x0B){LC709203F_detected=true; debug_print("LC709203F detected\n");
 	}else if(i2c_addr==0x36){MAX17048_detected=true; debug_print("MAX17048 detected\n");
 	}else if(i2c_addr>=0x48&&i2c_addr<=0x4F){MCP3021A_detected=true; debug_print("MCP3021A detected\n");
